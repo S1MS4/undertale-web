@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<!-- Only this server's own scripts run; nothing can be injected or loaded from elsewhere.
+		     The ws: entries are Vite's live-reload connection; blob: media is music read from the player's own install. -->
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self' ws://127.0.0.1:5173 ws://localhost:5173; object-src 'none'; base-uri 'none'; form-action 'none'"
+		/>
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Undertale</title>
+		<link rel="icon" type="image/png" href="/logo.png" />
+		<link rel="apple-touch-icon" href="/logo.png" />
+		<style>
+			html,
+			body {
+				margin: 0;
+				height: 100%;
+				background: #000;
+				color: #999;
+				font: 14px system-ui, sans-serif;
+			}
+			main {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: flex-start;
+				height: 100%;
+				overflow: hidden;
+			}
+			footer {
+				height: 48px;
+			}
+			canvas {
+				display: block;
+				image-rendering: pixelated;
+				background: #000;
+			}
+			#status {
+				margin: 0;
+			}
+			#setup {
+				max-width: 520px;
+				margin: auto 16px;
+				color: #ccc;
+				line-height: 1.5;
+			}
+			canvas[hidden],
+			#setup[hidden] {
+				display: none;
+			}
+			#setup h1 {
+				margin: 0 0 12px;
+				font-size: 22px;
+				color: #fff;
+			}
+			#setup p {
+				margin: 0 0 12px;
+			}
+			#setup code {
+				font: 13px ui-monospace, Consolas, monospace;
+				color: #fff;
+				word-break: break-all;
+			}
+			#game-pick {
+				margin: 4px 0 16px;
+				padding: 8px 16px;
+				border-color: #ff0;
+				color: #fff;
+			}
+			#setup-status {
+				min-height: 1.5em;
+				color: #ff0;
+			}
+			#setup .hint {
+				font-size: 13px;
+				color: #888;
+			}
+			button {
+				background: none;
+				border: 1px solid #555;
+				color: #ccc;
+				padding: 4px 10px;
+				font: inherit;
+				cursor: pointer;
+			}
+			button:disabled {
+				color: #555;
+				cursor: default;
+			}
+			button:focus-visible {
+				outline: 2px solid #ff0;
+				outline-offset: 2px;
+			}
+			.toolbar {
+				position: fixed;
+				top: 12px;
+				left: 12px;
+				z-index: 2;
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px;
+				align-items: center;
+			}
+			.toolbar button {
+				background: rgba(0, 0, 0, 0.65);
+			}
+			.toolbar[hidden] {
+				display: none;
+			}
+			.popover-anchor {
+				position: relative;
+			}
+			.toolbar .round {
+				display: grid;
+				place-items: center;
+				width: 34px;
+				height: 34px;
+				padding: 0;
+				border-radius: 50%;
+				background: rgba(0, 0, 0, 0.65);
+				color: #ccc;
+			}
+			.toolbar .round.wide {
+				display: flex;
+				gap: 6px;
+				width: auto;
+				padding: 0 14px 0 10px;
+				border-radius: 17px;
+				white-space: nowrap;
+			}
+			.toolbar .round:disabled {
+				opacity: 0.4;
+			}
+			.toolbar .round:hover:not(:disabled),
+			.toolbar .round[aria-expanded='true'] {
+				color: #ff0;
+				border-color: #ff0;
+			}
+			.round svg {
+				width: 18px;
+				height: 18px;
+				fill: none;
+				stroke: currentColor;
+				stroke-width: 1.8;
+				stroke-linejoin: round;
+				stroke-linecap: round;
+			}
+			#audio-toggle .cross,
+			#audio-toggle.muted .waves {
+				display: none;
+			}
+			#audio-toggle.muted .cross {
+				display: inline;
+			}
+			.popover {
+				position: absolute;
+				top: calc(100% + 6px);
+				left: 0;
+				z-index: 2;
+				background: #0d0d0d;
+				border: 1px solid #555;
+				padding: 6px;
+			}
+			.popover[hidden] {
+				display: none;
+			}
+			.menu {
+				display: flex;
+				flex-direction: column;
+				gap: 4px;
+				min-width: 170px;
+			}
+			.menu button {
+				border-color: transparent;
+				text-align: left;
+				white-space: nowrap;
+			}
+			.menu button:hover:not(:disabled) {
+				border-color: #555;
+				color: #fff;
+			}
+			.volume {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				color: #ccc;
+				padding: 2px 6px;
+				white-space: nowrap;
+			}
+			.volume input {
+				width: 110px;
+				accent-color: #ff0;
+				cursor: pointer;
+			}
+			.volume input:focus-visible {
+				outline: 2px solid #ff0;
+				outline-offset: 2px;
+			}
+			.volume output {
+				min-width: 4ch;
+				text-align: right;
+				font-variant-numeric: tabular-nums;
+			}
+			#export-status {
+				font-size: 13px;
+				color: #bbb;
+				background: rgba(0, 0, 0, 0.65);
+				padding: 3px 8px;
+			}
+			#export-status:empty {
+				display: none;
+			}
+			.panel .folder-name {
+				display: block;
+				margin: 6px 0 10px;
+				padding: 6px 10px;
+				border: 1px solid #ff0;
+				font-family: ui-monospace, Consolas, monospace;
+				color: #fff;
+				word-break: break-all;
+			}
+			.panel table {
+				width: 100%;
+				border-collapse: collapse;
+				margin-top: 12px;
+			}
+			.panel th,
+			.panel td {
+				text-align: left;
+				padding: 8px 6px;
+				border-bottom: 1px solid #333;
+				vertical-align: top;
+			}
+			.panel th {
+				color: #fff;
+				font-weight: 600;
+			}
+			.panel kbd {
+				display: inline-block;
+				min-width: 1.4em;
+				padding: 1px 6px;
+				margin: 0 2px 2px 0;
+				border: 1px solid #666;
+				border-bottom-width: 2px;
+				font: 13px ui-monospace, Consolas, monospace;
+				color: #fff;
+				text-align: center;
+			}
+			.panel td.pads {
+				white-space: nowrap;
+			}
+			.pad {
+				display: inline-grid;
+				grid-template-columns: repeat(3, auto);
+				justify-content: start;
+				vertical-align: middle;
+			}
+			.pad kbd {
+				margin: 0 2px 2px 0;
+			}
+			.pad .up {
+				grid-column: 2;
+				grid-row: 1;
+			}
+			.pad kbd:not(.up) {
+				grid-row: 2;
+			}
+			.panel {
+				position: fixed;
+				inset: 0 auto 0 0;
+				z-index: 3;
+				width: min(420px, calc(100vw - 32px));
+				box-sizing: border-box;
+				overflow-y: auto;
+				padding: 20px;
+				background: #0d0d0d;
+				border-right: 1px solid #444;
+				color: #ccc;
+				line-height: 1.5;
+			}
+			.panel[hidden] {
+				display: none;
+			}
+			.panel header {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				gap: 12px;
+			}
+			.panel h2 {
+				margin: 0;
+				font-size: 18px;
+				color: #fff;
+			}
+			.panel h3 {
+				margin: 24px 0 8px;
+				font-size: 15px;
+				color: #ff0;
+			}
+			.panel p,
+			.panel ol,
+			.panel ul {
+				margin: 0 0 8px;
+			}
+			.panel ol,
+			.panel ul {
+				padding-left: 20px;
+			}
+			.panel li {
+				margin-bottom: 6px;
+			}
+			.panel dl {
+				margin: 0 0 8px;
+			}
+			.panel dt {
+				font-family: ui-monospace, Consolas, monospace;
+				color: #fff;
+			}
+			.panel dd {
+				margin: 0 0 8px 16px;
+			}
+			.panel strong {
+				color: #fff;
+			}
+			.panel figure {
+				margin: 4px 0 12px;
+			}
+			.panel img {
+				display: block;
+				width: 100%;
+				height: auto;
+				border: 1px solid #444;
+			}
+			.panel .hint {
+				font-size: 12px;
+				color: #888;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="toolbar" id="toolbar">
+			<div class="popover-anchor">
+				<button id="help-toggle" class="round" type="button" aria-label="Help" title="Help" aria-expanded="false" aria-controls="help-popover"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.2 9.2a2.9 2.9 0 1 1 4.1 2.6c-.9.5-1.3 1-1.3 2" /><circle cx="12" cy="17.6" r=".6" /></svg></button>
+				<div id="help-popover" class="popover menu" hidden>
+					<button id="help-open" type="button" aria-expanded="false" aria-controls="help-panel">How the save works</button>
+					<button id="keys-open" type="button" aria-expanded="false" aria-controls="keys-panel">Keybinds</button>
+				</div>
+			</div>
+			<button id="export" class="round wide" type="button" disabled title="Saves your current spot, then exports it as a folder">
+				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.500-4.500M5 19h14" /></svg>
+				Export save
+			</button>
+			<button id="forget-game" type="button" hidden title="Removes this browser's copy of the game files; you'll pick the Undertale folder again">Forget game files</button>
+			<div class="popover-anchor">
+				<button id="audio-toggle" class="round" type="button" aria-label="Volume" title="Volume" aria-expanded="false" aria-controls="audio-popover">
+					<svg viewBox="0 0 24 24" aria-hidden="true">
+						<path class="speaker" d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" />
+						<path class="waves" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+						<path class="cross" d="M16 9.5l5 5M21 9.5l-5 5" />
+					</svg>
+				</button>
+				<div id="audio-popover" class="popover" hidden>
+					<label class="volume">
+						Volume
+						<input id="volume" type="range" min="0" max="100" step="5" value="100" />
+						<output id="volume-value" for="volume">100%</output>
+					</label>
+				</div>
+			</div>
+			<span id="export-status" role="status"></span>
+		</div>
+		<aside id="keys-panel" class="panel" aria-labelledby="keys-title" hidden>
+			<header>
+				<h2 id="keys-title" tabindex="-1">Keybinds</h2>
+				<button id="keys-close" type="button" aria-label="Close">Close</button>
+			</header>
+			<table>
+				<tr><th>Move</th><td class="pads"><div class="pad"><kbd class="up">↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div> or <div class="pad"><kbd class="up">W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div></td></tr>
+				<tr><th>Confirm / talk / check</th><td><kbd>Z</kbd> or <kbd>Space</kbd></td></tr>
+				<tr><th>Cancel / run</th><td><kbd>X</kbd> or <kbd>Shift</kbd></td></tr>
+				<tr><th>Menu</th><td><kbd>C</kbd> or <kbd>Ctrl</kbd></td></tr>
+				<tr><th>Skip cutscene</th><td>Hold <kbd>Enter</kbd></td></tr>
+				<tr><th>Save</th><td>Walk to a yellow star, press <kbd>Z</kbd></td></tr>
+				<tr><th>Fullscreen</th><td><kbd>F4</kbd></td></tr>
+				<tr><th>Quit to start screen</th><td>Hold <kbd>Esc</kbd></td></tr>
+			</table>
+			<p class="hint">Controllers work too: stick or d-pad to move, A to confirm, B to cancel.</p>
+		</aside>
+		<aside id="help-panel" class="panel" aria-labelledby="help-title" hidden>
+			<header>
+				<h2 id="help-title" tabindex="-1">How the save works</h2>
+				<button id="help-close" type="button" aria-label="Close">Close</button>
+			</header>
+
+			<h3>Export save</h3>
+			<p>Click <strong>Export save</strong> (top left) any time and pick a place. If you can walk around, it saves your current spot first; otherwise it exports your last save (yellow stars save too). You get a folder named like this, with the date and time of the export:</p>
+			<code class="folder-name">undertale-save-2026-10-23-14-05-00</code>
+			<figure>
+				<a href="/help/export-folder.png" target="_blank" rel="noopener">
+					<img
+						src="/help/export-folder.png"
+						width="964"
+						height="552"
+						alt="File Explorer showing the undertale-save folder. 1: its five files: config.ini, file0, file9, undertale.ini and undertale-web-save.json."
+					/>
+				</a>
+			</figure>
+			<p>Don't change anything inside it.</p>
+
+			<h3>Import save</h3>
+			<p>Start screen → <strong>Import Save</strong>. Look for the folder whose name starts with:</p>
+			<code class="folder-name">undertale-save-</code>
+			<p>Pick that folder itself (1), click <strong>Upload</strong> (2), confirm.</p>
+			<figure>
+				<a href="/help/import-folder.png" target="_blank" rel="noopener">
+					<img
+						src="/help/import-folder.png"
+						width="944"
+						height="592"
+						alt="The Windows 'Select Folder to Upload' window. 1: the undertale-save folder is highlighted in the list. 2: the Upload button."
+					/>
+				</a>
+			</figure>
+			<p>The game loads your save. Next time, just pick <strong>Continue</strong> (1):</p>
+			<figure>
+				<a href="/help/continue.png" target="_blank" rel="noopener">
+					<img src="/help/continue.png" width="750" height="375" alt="The start screen with Continue selected and marked 1, above Import Save and Start New Game." />
+				</a>
+			</figure>
+
+			<ul>
+				<li>Only works in the browser that exported it.</li>
+				<li><strong>Start New Game</strong> always starts empty.</li>
+				<li>Nothing leaves your computer.</li>
+			</ul>
+			<p class="hint">Click a picture to enlarge. Personal names are blurred.</p>
+		</aside>
+		<p id="status" role="status">Loading…</p>
+		<canvas id="screen" width="640" height="480"></canvas>
+		<section id="setup" hidden>
+			<h1>Undertale</h1>
+			<p>Pick your Undertale install folder (the one with <code>data.win</code>). It is read in this browser only.</p>
+			<button id="game-pick" type="button">Choose folder</button>
+			<p id="setup-status" role="status"></p>
+		</section>
+		<input id="picker" type="file" webkitdirectory hidden />
+		<input id="game-picker" type="file" webkitdirectory hidden />
+		<script type="module" src="/src/main.ts"></script>
+	</body>
+</html>

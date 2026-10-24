@@ -1,0 +1,17 @@
+{
+	"name": "undertale-web",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "tsc && vite build",
+		"preview": "vite preview",
+		"check": "tsc",
+		"check-data": "node tools/check-datawin.ts"
+	},
+	"devDependencies": {
+		"@types/node": "^26.6.5",
+		"typescript": "^7.0.2",
+		"vite": "^8.3.5"
+	}
+}

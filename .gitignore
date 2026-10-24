@@ -1,0 +1,12 @@
+node_modules/
+dist/
+# Local study material from the game (decompiled code, exported assets). Never commit.
+reference/
+.firebase/
+# The game's own files (data.win, music, DLLs). Never commit or ship them.
+assets/
+public/game/
+*.win
+*.ogg
+*.dll
+*.ini
